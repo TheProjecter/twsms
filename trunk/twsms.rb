@@ -3,12 +3,12 @@
   == Information ==
   === Copyright: Apache 2.0
   === Author: CFC < zusocfc@gmail.com >
-  === Prog. Name: TWSMS lib
-  === Version: 0.2.0
+  === Library Name: TWSMS lib
+  === Version: 0.2.1
   === Please read README file to get more information.
 =end
 
-%w|uri cgi net/http|.each{|r| require r}
+%w|date uri cgi net/http|.each{|r| require r}
 SEND_URL = "http://api.twsms.com/send_sms.php?"
 QUERY_URL = "http://api.twsms.com/query_sms.php?"
 
@@ -69,8 +69,6 @@ class TWSMS
       -11.to_s.to_sym => "Your account has been blocked",
       -12.to_s.to_sym => "Your message maybe invalid",
     }
-    
-    @other_values = {}
   end
   
   def sendSMS(mobile, message, opt={})
@@ -79,7 +77,9 @@ class TWSMS
     @send_options.merge!(opt).each{|k, v| args << k.to_s + "=" + CGI::escape(v.to_s)}
     url = SEND_URL + "username=" + @uname + "&password=" + @upwd + "&" + args.join("&")
     self.check_send_val
+    (raise "dlvtime is invalid";exit) unless self.check_date("dlvtime")
     self.check_send_resp(Net::HTTP.get(URI.parse(url)))
+    return nil
   end
   
   def querySMS()
@@ -89,39 +89,75 @@ class TWSMS
     url += "&monumber=" + @query_options[:monumber].to_s
     url += "&sdate=" + @query_options[:sdate].to_s
     url += "&edate=" + @query_options[:edate].to_s
+    (raise "dlvtime is invalid";exit) unless self.check_date("sdate")
+    (raise "dlvtime is invalid";exit) unless self.check_date("edate")
     self.check_query_resp(Net::HTTP.get(URI.parse(url)))
+    return nil
   end
 
   def setMessageId(msgid)
-    @query_options[:msgid] = msgid unless msgid.nil?
-    (puts "You did not give me the message id!!!";exit) if msgid.nil?
+    # @query_options[:msgid] = msgid unless msgid.nil?
+    # (puts "You did not give me the message id!!!";exit) if msgid.nil?
+    if msgid.nil?
+      puts "You did not give me the message id!!!"
+      exit
+    else
+      @query_options[:msgid] = msgid
+    end
+    return nil
   end
   
   def check_query_resp(resp)
     resp = resp.split("=")[1].split(",")[0]
+=begin
     if resp.to_s == "0"
       puts "==========", "Query succeed! The result: " + @@query_errors[resp.to_s.to_sym]
     else
       puts "==========", "Error!! Message: ", @@query_errors[resp.to_s.to_sym]
     end
+=end
+    return @@query_errors[resp.to_s.to_sym]
   end
   
   def check_send_resp(resp)
     # Before rename, its name is chk_errors
     resp = resp.split("=")[1].split(",")[0]
     if @@send_errors.has_key?(resp.to_s.to_sym)
-      puts "==========", "Error!! Message: ", @@send_errors[resp.to_s.to_sym]
+      # puts "==========", "Error!! Message: ", @@send_errors[resp.to_s.to_sym]
+      return @@send_errors[resp.to_s.to_sym]
     else
-      puts "==========", "Message has been send! Your message id is: " + resp.to_s
+      # puts "==========", "Message has been send! Your message id is: " + resp.to_s
       @query_options[:msgid] = resp.to_s
+      return resp.to_s
     end
   end
   
-  def check_send_val
+  def check_send_val()
+    @send_options[:type] = "now" unless @send_options[:type] == ("now" || "dlv") # 0.2.1 -- Make sure the type is valid
     @send_options[:dlvtime] = "" unless @send_options[:type] == "dlv"
-    @send_options[:wapurl] = "" if @send_options[:type] != ("push" && "upush")
+    @send_options[:wapurl] = "" unless @send_options[:type] == ("push" && "upush")
     @send_options[:mo] = @send_options[:mo].upcase
+    @send_options[:mobile].gsub(/-/, "") # 0.2.1 -- Check the mobile format
+    return nil
   end
   
-  protected :check_send_val, :check_send_resp, :check_query_resp
+  def check_date(type="dlvtime")
+    # For dlvtime, sdate, edate
+    # 0.2.1 -- Make sure the date is valid
+    case type
+      when "dlvtime"
+        d = DateTime.parse(@send_options[:dlvtime])
+        vc = Date.valid_civil?(d.year, d.month, d.day)
+        vt = Date.valid_time?(d.hour, d.min, d.sec)
+        return true if vc == vt
+      when "sdate"
+        d = DateTime.parse(@query_options[:sdate])
+        return true if Date.valid_civil?(d.year, d.month, d.day)
+      when "edate"
+        d = DateTime.parse(@query_options[:edate])
+        return true if Date.valid_civil?(d.year, d.month, d.day)
+    end
+  end
+  
+  protected :check_send_val, :check_date, :check_send_resp, :check_query_resp
 end
