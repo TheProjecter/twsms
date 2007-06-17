@@ -1,36 +1,23 @@
+# Rename to TWSMSender
 =begin
   == Information ==
   === Copyright: Apache 2.0
   === Author: CFC < zusocfc@gmail.com >
   === Prog. Name: TWSMS lib
-  === Version: 0.1
-  == Introduction ==
-    TWSMS(Taiwan SMS)
-    TWSMS is a SMS sender, it must use with http://www.twsms.com.
-    There has no any library for the SMS system in Taiwan. So, I just coded this and release this version.
-    This version just support for sending SMS.
-  == Featured ==
-    
-  == Using TWSMS ==
-    It just support for standalone class now.
-    require it before you use.
-  === Using TWSMS by standalone class
-    require 'twsms'
-    sms = TWSMS.new('username', 'password')
-    sms.sendSMS('09xxxxxxxx', 'Hi, there! TWSMS library is so easy to use!')
-    sms.sendSMS('09xxxxxxxx', 'Send SMS with options',
-        :popup => 1,
-        :type => "now",
-        :mo => "Y")
+  === Version: 0.2.0
+  === Please read README file to get more information.
 =end
 
 %w|uri cgi net/http|.each{|r| require r}
+SEND_URL = "http://api.twsms.com/send_sms.php?"
+QUERY_URL = "http://api.twsms.com/query_sms.php?"
 
 class TWSMS
   def initialize(username, password)
     @uname, @upwd = username, password
-    @options = {
-      :type => "now", # Sending type: now, vld
+    # Before renamed, its name is: @send_options
+    @send_options = {
+      :type => "now",
       :popup => "",
       :mo => "Y".upcase,
       :vldtime => "86400",
@@ -40,7 +27,16 @@ class TWSMS
       :encoding => "big5"
     }
     
-    @errors = {
+    @query_options = {
+      :type => "now",
+      :msgid => "",
+      :monumber => "",
+      :sdate => "",
+      :edate => ""
+    }
+    
+    # Before renamed, its name is: @@errors
+    @@send_errors = {
       -1.to_s.to_sym => "Send failed",
       -2.to_s.to_sym => "Username or password is invalid",
       -3.to_s.to_sym => "Popup tag error",
@@ -57,33 +53,75 @@ class TWSMS
       -14.to_s.to_sym => "Source IP has no permission",
       -99.to_s.to_sym => "System error!! Please contact the administrator, thanks!!"
     }
-    @args = []
-    @url ||= "http://api.twsms.com/send_sms.php?"
-    @url += "username=" + @uname
-    @url += "&password=" + @upwd
+    
+    @@query_errors = {
+      0.to_s.to_sym => "Message already been sent or reserving message has been deleted",
+      -1.to_s.to_sym => "Could not find the message id or ",
+      -2.to_s.to_sym => "Username or password is invalid",
+      -3.to_s.to_sym => "The reserving message does send yet",
+      -4.to_s.to_sym => "Type tag error",
+      -5.to_s.to_sym => "The target mobile did not callback",
+      -6.to_s.to_sym => "Failed on sent message to the operator",
+      -7.to_s.to_sym => "No short code",
+      -8.to_s.to_sym => "No return message",
+      -9.to_s.to_sym => "sdate or edate setting error",
+      -10.to_s.to_sym => "No record of ",
+      -11.to_s.to_sym => "Your account has been blocked",
+      -12.to_s.to_sym => "Your message maybe invalid",
+    }
+    
+    @other_values = {}
   end
   
   def sendSMS(mobile, message, opt={})
-    @options[:mobile], @options[:message] = mobile, message
-    @options.merge!(opt).each{|k, v| @args << k.to_s + "=" + CGI::escape(v.to_s)}
-    @url += "&" + @args.join("&")
-    self.chk_val
-    chk_errors(Net::HTTP.get(URI.parse(@url)))
+    args = []
+    @send_options[:mobile], @send_options[:message] = mobile, message
+    @send_options.merge!(opt).each{|k, v| args << k.to_s + "=" + CGI::escape(v.to_s)}
+    url = SEND_URL + "username=" + @uname + "&password=" + @upwd + "&" + args.join("&")
+    self.check_send_val
+    self.check_send_resp(Net::HTTP.get(URI.parse(url)))
   end
   
-  def chk_val
-    @options[:dlvtime] = "" unless @options[:type] == "dlv"
-    @options[:wapurl] = "" if @options[:type] != ("push" && "upush")
+  def querySMS()
+    url ||= QUERY_URL + "username=" + @uname + "&password=" + @upwd
+    url += "&type=" + @query_options[:type].to_s
+    url += "&msgid=" + @query_options[:msgid].to_s
+    url += "&monumber=" + @query_options[:monumber].to_s
+    url += "&sdate=" + @query_options[:sdate].to_s
+    url += "&edate=" + @query_options[:edate].to_s
+    self.check_query_resp(Net::HTTP.get(URI.parse(url)))
+  end
+
+  def setMessageId(msgid)
+    @query_options[:msgid] = msgid unless msgid.nil?
+    (puts "You did not give me the message id!!!";exit) if msgid.nil?
   end
   
-  def chk_errors(resp)
-    resp = resp.split("=")[1]
-    if @errors.has_key?(resp.to_s.to_sym)
-      puts "==========", "Error!! Message: ", @errors[resp.to_s.to_sym]
+  def check_query_resp(resp)
+    resp = resp.split("=")[1].split(",")[0]
+    if resp.to_s == "0"
+      puts "==========", "Query succeed! The result: " + @@query_errors[resp.to_s.to_sym]
     else
-      puts "==========", "Message has been send! Your message id is: " + resp.to_s
+      puts "==========", "Error!! Message: ", @@query_errors[resp.to_s.to_sym]
     end
   end
   
-  protected :chk_val
+  def check_send_resp(resp)
+    # Before rename, its name is chk_errors
+    resp = resp.split("=")[1].split(",")[0]
+    if @@send_errors.has_key?(resp.to_s.to_sym)
+      puts "==========", "Error!! Message: ", @@send_errors[resp.to_s.to_sym]
+    else
+      puts "==========", "Message has been send! Your message id is: " + resp.to_s
+      @query_options[:msgid] = resp.to_s
+    end
+  end
+  
+  def check_send_val
+    @send_options[:dlvtime] = "" unless @send_options[:type] == "dlv"
+    @send_options[:wapurl] = "" if @send_options[:type] != ("push" && "upush")
+    @send_options[:mo] = @send_options[:mo].upcase
+  end
+  
+  protected :check_send_val, :check_send_resp, :check_query_resp
 end
