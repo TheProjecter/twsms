@@ -78,8 +78,7 @@ class TWSMS
     url = SEND_URL + "username=" + @uname + "&password=" + @upwd + "&" + args.join("&")
     self.check_send_val
     (raise "dlvtime is invalid";exit) unless self.check_date("dlvtime")
-    self.check_send_resp(Net::HTTP.get(URI.parse(url)))
-    return nil
+    return self.check_send_resp(Net::HTTP.get(URI.parse(url)))
   end
   
   def querySMS()
@@ -91,8 +90,7 @@ class TWSMS
     url += "&edate=" + @query_options[:edate].to_s
     (raise "dlvtime is invalid";exit) unless self.check_date("sdate")
     (raise "dlvtime is invalid";exit) unless self.check_date("edate")
-    self.check_query_resp(Net::HTTP.get(URI.parse(url)))
-    return nil
+    return self.check_query_resp(Net::HTTP.get(URI.parse(url)))
   end
 
   def setMessageId(msgid)
