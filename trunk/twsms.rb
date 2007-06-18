@@ -1,19 +1,21 @@
-# Rename to TWSMSender
+﻿# Rename to TWSMSender
 =begin
   == Information ==
   === Copyright: Apache 2.0
   === Author: CFC < zusocfc@gmail.com >
   === Library Name: TWSMS lib
-  === Version: 0.2.1
+  === Version: 0.2.2
   === Please read README file to get more information.
 =end
 
-%w|date uri cgi net/http|.each{|r| require r}
-SEND_URL = "http://api.twsms.com/send_sms.php?"
-QUERY_URL = "http://api.twsms.com/query_sms.php?"
+%w"date uri cgi net/http".each{|r| require r}
+
 
 class TWSMS
   def initialize(username, password)
+    @@SEND_URL = "http://api.twsms.com/send_sms.php?"
+    @@QUERY_URL = "http://api.twsms.com/query_sms.php?"
+    
     @uname, @upwd = username, password
     # Before renamed, its name is: @send_options
     @send_options = {
@@ -74,15 +76,15 @@ class TWSMS
   def sendSMS(mobile, message, opt={})
     args = []
     @send_options[:mobile], @send_options[:message] = mobile, message
-    @send_options.merge!(opt).each{|k, v| args << k.to_s + "=" + CGI::escape(v.to_s)}
-    url = SEND_URL + "username=" + @uname + "&password=" + @upwd + "&" + args.join("&")
     self.check_send_val
     (raise "dlvtime is invalid";exit) unless self.check_date("dlvtime")
+    @send_options.merge!(opt).each{|k, v| args << k.to_s + "=" + CGI::escape(v.to_s)}
+    url = @@SEND_URL + "username=" + @uname + "&password=" + @upwd + "&" + args.join("&")
     return self.check_send_resp(Net::HTTP.get(URI.parse(url)))
   end
   
   def querySMS()
-    url ||= QUERY_URL + "username=" + @uname + "&password=" + @upwd
+    url ||= @@QUERY_URL + "username=" + @uname + "&password=" + @upwd
     url += "&type=" + @query_options[:type].to_s
     url += "&msgid=" + @query_options[:msgid].to_s
     url += "&monumber=" + @query_options[:monumber].to_s
